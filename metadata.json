@@ -1,0 +1,7 @@
+{
+  "name": "Molex Inventory System",
+  "description": "Professional Inventory Management System with QR scanning capabilities, operator logging, and stock control.",
+  "requestFramePermissions": [
+    "camera"
+  ]
+}
