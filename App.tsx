@@ -1,4 +1,3 @@
-
 import React, { useState } from 'react';
 import { InventoryProvider, useInventory } from './context/InventoryContext';
 import { BrandingProvider } from './context/BrandingContext';
@@ -12,7 +11,7 @@ import { SUPERVISOR_QR_ID, SUPERVISOR_NAME, LOCATION_QR_PREFIX, ADMIN_PIN } from
 import { CameraIcon, LockClosedIcon } from './components/Icons';
 
 const AppContent = () => {
-  const { getPartsByLocation, users } = useInventory();
+  const { getPartsByLocation, users, refreshData } = useInventory();
   const [currentUser, setCurrentUser] = useState<User | null>(null);
   const [lastError, setLastError] = useState<string | null>(null);
   const [isAdminAuthOpen, setIsAdminAuthOpen] = useState(false);
@@ -37,7 +36,7 @@ const AppContent = () => {
       setIsAdminAuthOpen(true);
       setPinInput('');
       setIsPinSubmitLocked(true);
-      setTimeout(() => setIsPinSubmitLocked(false), 1000); 
+      setTimeout(() => setIsPinSubmitLocked(false), 500); 
       return;
     }
     const foundUser = users.find(u => u.id === scannedId);
@@ -52,10 +51,11 @@ const AppContent = () => {
   const handleAdminPinSubmit = (e: React.FormEvent) => {
       e.preventDefault();
       if (isPinSubmitLocked) return;
-      if (!pinInput || pinInput.trim() === '') return;
       if (pinInput === ADMIN_PIN) {
           setCurrentUser({ id: SUPERVISOR_QR_ID, name: SUPERVISOR_NAME, isSupervisor: true });
           setIsAdminAuthOpen(false);
+          setPinInput('');
+          refreshData();
       } else {
           alert("Incorrect PIN.");
           setPinInput('');
@@ -95,7 +95,7 @@ const AppContent = () => {
                   {isPinSubmitLocked ? "Initializing..." : "Enter Admin PIN."}
               </p>
               <input type="password" autoFocus autoComplete="off" className="bg-dark-bg border border-dark-border rounded-xl px-4 py-3 text-center text-2xl font-bold text-white mb-6 w-48 outline-none" maxLength={4} value={pinInput} onChange={(e) => setPinInput(e.target.value)} placeholder="••••" disabled={isPinSubmitLocked}/>
-              <button type="submit" disabled={isPinSubmitLocked} className="w-full bg-primary-600 hover:bg-primary-500 text-white font-bold py-3 rounded-xl">Verify Access</button>
+              <button type="submit" disabled={isPinSubmitLocked} className="w-full bg-primary-600 hover:bg-primary-500 text-white font-bold py-3 rounded-xl transition-all active:scale-95">Verify Access</button>
           </form>
       </Modal>
 
@@ -104,14 +104,25 @@ const AppContent = () => {
               <div className="space-y-3">
                   {locationModalData.parts.map(part => (
                       <div key={part.id} className="flex items-center gap-4 p-4 bg-white/5 rounded-lg border border-white/10">
-                          <div className="w-16 h-16 bg-gray-700 rounded flex items-center justify-center shrink-0"><img src={part.image || "https://picsum.photos/100"} className="max-w-full max-h-full object-contain" alt="part"/></div>
-                          <div className="flex-1"><h3 className="font-bold text-white">{part.name}</h3><p className="text-sm text-primary-400">{part.id}</p></div>
-                          <div className="text-right"><div className="text-xs text-gray-400">Qty</div><div className="text-xl font-bold text-white">{part.quantity}</div></div>
+                          <div className="w-16 h-16 bg-gray-700 rounded flex items-center justify-center shrink-0">
+                            <img src={part.image || "https://picsum.photos/100"} className="max-w-full max-h-full object-contain" alt="part"/>
+                          </div>
+                          <div className="flex-1">
+                            <h3 className="font-bold text-white">{part.name}</h3>
+                            <p className="text-sm text-primary-400 font-mono">{part.id}</p>
+                          </div>
+                          <div className="text-right">
+                            <div className="text-xs text-gray-400">Qty</div>
+                            <div className="text-xl font-bold text-white">{part.quantity}</div>
+                          </div>
                       </div>
                   ))}
               </div>
           ) : (
-              <div className="text-center py-12 text-gray-500"><CameraIcon className="w-12 h-12 mx-auto mb-3 opacity-50"/><p>This location is currently empty.</p></div>
+              <div className="text-center py-12 text-gray-500">
+                <CameraIcon className="w-12 h-12 mx-auto mb-3 opacity-50"/>
+                <p>This location is currently empty.</p>
+              </div>
           )}
       </Modal>
     </>

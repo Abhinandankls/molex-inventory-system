@@ -1,20 +1,20 @@
 import React, { useState, useRef, useMemo, useEffect } from 'react';
-import { useInventory } from './context/InventoryContext';
-import { useBranding } from './context/BrandingContext';
-import { StorageService } from './services/storageService';
+import { useInventory } from '../context/InventoryContext';
+import { useBranding } from '../context/BrandingContext';
+import { StorageService } from '../services/storageService';
 import { QRCodeSVG } from 'qrcode.react';
-import { Part, User, SupabaseConfig } from './types';
-import { SUPERVISOR_QR_ID, LOGOUT_QR_ID, SUPERVISOR_NAME } from './constants';
-import { Modal } from './components/common/Modal';
-import { LabelPrinter } from './components/common/LabelPrinter'; 
-import { AnalyticsChart } from './components/common/AnalyticsChart';
+import { Part, User, SupabaseConfig } from '../types';
+import { SUPERVISOR_QR_ID, LOGOUT_QR_ID, SUPERVISOR_NAME } from '../constants';
+import { Modal } from './common/Modal';
+import { LabelPrinter } from './common/LabelPrinter'; 
+import { AnalyticsChart } from './common/AnalyticsChart';
 import { 
     ChartBarIcon, DocumentTextIcon, ListBulletIcon, CogIcon, SearchIcon, DownloadIcon, 
     PlusCircleIcon, PencilIcon, XCircleIcon, UploadIcon, RefreshIcon, FilterIcon, 
     UserCircleIcon, QrCodeIcon, ExclamationTriangleIcon, GridViewIcon, 
     LockClosedIcon, ShieldCheckIcon, DatabaseIcon, CameraIcon, EnvelopeIcon, CloudIcon, WifiIcon,
     DevicePhoneMobileIcon, PaperAirplaneIcon, CalendarDaysIcon
-} from './components/Icons';
+} from './Icons';
 import ExcelJS from 'exceljs';
 import saveAs from 'file-saver';
 
@@ -180,6 +180,8 @@ const PartModal = ({ isOpen, onClose, partToEdit, onSave }: any) => {
             if (imageFile) fd.append('image', imageFile);
             else if (imagePreview === null && partToEdit?.image) fd.append('image', ''); 
             await onSave(fd);
+        } catch (error) {
+            console.error("Save error:", error);
         } finally {
             setIsSaving(false);
         }
@@ -229,7 +231,7 @@ const PartModal = ({ isOpen, onClose, partToEdit, onSave }: any) => {
                 </div>
                 <div><label className="block text-sm font-medium text-gray-400 mb-1">Quantity</label><input type="number" required value={qty} onChange={e=>setQty(Number(e.target.value))} className="w-full bg-dark-bg border border-dark-border rounded-lg p-3 text-white focus:border-primary-500 outline-none" min="0"/></div>
                 <div className="pt-4 flex justify-end gap-3 border-t border-dark-border mt-2">
-                    <button type="button" onClick={onClose} className="px-5 py-2.5 rounded-lg text-gray-400 hover:text-white hover:bg-white/5 transition-colors font-medium">Cancel</button>
+                    <button type="button" onClick={onClose} className="px-5 py-2.5 rounded-lg text-gray-400 hover:text-white hover:bg-white/5 transition-colors font-medium" disabled={isSaving}>Cancel</button>
                     <button type="submit" disabled={isSaving} className="px-5 py-2.5 bg-primary-600 hover:bg-primary-500 rounded-lg text-white font-bold shadow-lg shadow-primary-900/30 transition-all flex items-center gap-2">
                         {isSaving ? <RefreshIcon className="w-5 h-5 animate-spin" /> : null}
                         {isSaving ? 'Saving...' : 'Save Changes'}
@@ -323,7 +325,7 @@ export const SupervisorDashboard: React.FC<Props> = ({ currentUser, onLogout }) 
       if (res.success) { 
           setNewMemberName(''); 
           alert('Team member added!'); 
-          refreshData(); 
+          refreshData();
       } else {
           alert("Error adding user: " + res.message);
       }
@@ -356,7 +358,10 @@ export const SupervisorDashboard: React.FC<Props> = ({ currentUser, onLogout }) 
   const handleCreate = () => { setPartToEdit(null); setIsPartModalOpen(true); };
   const handleRestock = async (id: string) => {
       const qty = prompt("Enter quantity to add:");
-      if(qty && !isNaN(Number(qty))) await restockPart(id, Number(qty));
+      if(qty && !isNaN(Number(qty))) {
+          const res = await restockPart(id, Number(qty));
+          if (res.success) refreshData();
+      }
   };
 
   const handleLock = () => setIsLocked(true);
