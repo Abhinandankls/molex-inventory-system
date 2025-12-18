@@ -1,21 +1,20 @@
-
 import React, { useState, useRef, useMemo, useEffect } from 'react';
-import { useInventory } from '../context/InventoryContext';
-import { useBranding } from '../context/BrandingContext';
-import { StorageService } from '../services/storageService';
+import { useInventory } from './context/InventoryContext';
+import { useBranding } from './context/BrandingContext';
+import { StorageService } from './services/storageService';
 import { QRCodeSVG } from 'qrcode.react';
-import { Part, User, SupabaseConfig } from '../types';
-import { SUPERVISOR_QR_ID, LOGOUT_QR_ID, SUPERVISOR_NAME } from '../constants';
-import { Modal } from './common/Modal';
-import { LabelPrinter } from './common/LabelPrinter'; 
-import { AnalyticsChart } from './common/AnalyticsChart';
+import { Part, User, SupabaseConfig } from './types';
+import { SUPERVISOR_QR_ID, LOGOUT_QR_ID, SUPERVISOR_NAME } from './constants';
+import { Modal } from './components/common/Modal';
+import { LabelPrinter } from './components/common/LabelPrinter'; 
+import { AnalyticsChart } from './components/common/AnalyticsChart';
 import { 
     ChartBarIcon, DocumentTextIcon, ListBulletIcon, CogIcon, SearchIcon, DownloadIcon, 
     PlusCircleIcon, PencilIcon, XCircleIcon, UploadIcon, RefreshIcon, FilterIcon, 
     UserCircleIcon, QrCodeIcon, ExclamationTriangleIcon, GridViewIcon, 
     LockClosedIcon, ShieldCheckIcon, DatabaseIcon, CameraIcon, EnvelopeIcon, CloudIcon, WifiIcon,
     DevicePhoneMobileIcon, PaperAirplaneIcon, CalendarDaysIcon
-} from './Icons';
+} from './components/Icons';
 import ExcelJS from 'exceljs';
 import saveAs from 'file-saver';
 
@@ -59,13 +58,6 @@ const RackView = ({ parts, onPartSelect }: { parts: Part[], onPartSelect: (p: Pa
                 >
                     {racks.map(r => <option key={r} value={r}>{r}</option>)}
                 </select>
-                <div className="flex-1"></div>
-                <div className="hidden sm:flex gap-4 text-xs">
-                    <div className="flex items-center gap-2"><div className="w-3 h-3 bg-green-500 rounded"></div> OK</div>
-                    <div className="flex items-center gap-2"><div className="w-3 h-3 bg-yellow-500 rounded"></div> Low</div>
-                    <div className="flex items-center gap-2"><div className="w-3 h-3 bg-red-500 rounded"></div> Empty</div>
-                    <div className="flex items-center gap-2"><div className="w-3 h-3 bg-gray-700 border border-gray-600 rounded"></div> Unused</div>
-                </div>
             </div>
             <div className="bg-dark-surface/30 rounded-2xl p-6 border border-dark-border overflow-x-auto shadow-2xl">
                 {sortedRows.length === 0 ? (
@@ -89,9 +81,9 @@ const RackView = ({ parts, onPartSelect }: { parts: Part[], onPartSelect: (p: Pa
                                         
                                         let statusColor = 'bg-gray-800/50 border-gray-700/50 hover:bg-gray-700';
                                         if (hasParts) {
-                                            if (totalQty === 0) statusColor = 'bg-red-900/40 border-red-500/50 hover:bg-red-900/60 shadow-[0_0_15px_-3px_rgba(239,68,68,0.3)]';
-                                            else if (totalQty <= 5) statusColor = 'bg-yellow-900/40 border-yellow-500/50 hover:bg-yellow-900/60 shadow-[0_0_15px_-3px_rgba(234,179,8,0.3)]';
-                                            else statusColor = 'bg-green-900/30 border-green-500/30 hover:bg-green-900/50 shadow-[0_0_15px_-3px_rgba(34,197,94,0.2)]';
+                                            if (totalQty === 0) statusColor = 'bg-red-900/40 border-red-500/50 hover:bg-red-900/60';
+                                            else if (totalQty <= 5) statusColor = 'bg-yellow-900/40 border-yellow-500/50 hover:bg-yellow-900/60';
+                                            else statusColor = 'bg-green-900/30 border-green-500/30 hover:bg-green-900/50';
                                         }
 
                                         return (
@@ -138,6 +130,7 @@ const PartModal = ({ isOpen, onClose, partToEdit, onSave }: any) => {
     const [loc, setLoc] = useState({rack:'', row:'', bin:''});
     const [imagePreview, setImagePreview] = useState<string | null>(null);
     const [imageFile, setImageFile] = useState<File | null>(null);
+    const [isSaving, setIsSaving] = useState(false);
     const fileInputRef = useRef<HTMLInputElement>(null);
     
     useEffect(() => {
@@ -172,18 +165,24 @@ const PartModal = ({ isOpen, onClose, partToEdit, onSave }: any) => {
         if (fileInputRef.current) fileInputRef.current.value = '';
     };
 
-    const handleSubmit = (e: React.FormEvent) => {
+    const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
-        const fd = new FormData();
-        fd.append('id', id);
-        fd.append('name', name);
-        fd.append('quantity', qty.toString());
-        fd.append('rack', loc.rack.toUpperCase());
-        fd.append('row', loc.row.toUpperCase());
-        fd.append('bin', loc.bin.toUpperCase());
-        if (imageFile) fd.append('image', imageFile);
-        else if (imagePreview === null && partToEdit?.image) fd.append('image', ''); 
-        onSave(fd);
+        if (isSaving) return;
+        setIsSaving(true);
+        try {
+            const fd = new FormData();
+            fd.append('id', id);
+            fd.append('name', name);
+            fd.append('quantity', qty.toString());
+            fd.append('rack', loc.rack.toUpperCase());
+            fd.append('row', loc.row.toUpperCase());
+            fd.append('bin', loc.bin.toUpperCase());
+            if (imageFile) fd.append('image', imageFile);
+            else if (imagePreview === null && partToEdit?.image) fd.append('image', ''); 
+            await onSave(fd);
+        } finally {
+            setIsSaving(false);
+        }
     };
 
     return (
@@ -217,11 +216,10 @@ const PartModal = ({ isOpen, onClose, partToEdit, onSave }: any) => {
                             {imagePreview && (
                                 <button type="button" onClick={handleRemoveImage} className="ml-2 text-xs text-red-400 hover:text-red-300">Remove</button>
                             )}
-                            <p className="text-[10px] text-gray-500 mt-1">Supports JPG, PNG. Max 5MB.</p>
                         </div>
                     </div>
                 </div>
-                 <div className="bg-gray-800/30 p-4 rounded-xl border border-gray-700/50">
+                <div className="bg-gray-800/30 p-4 rounded-xl border border-gray-700/50">
                     <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-3">Storage Location</label>
                     <div className="grid grid-cols-3 gap-4">
                         <div><label className="text-xs text-gray-400 block mb-1">Rack</label><input required value={loc.rack} onChange={e=>setLoc({...loc, rack:e.target.value})} className="w-full bg-dark-bg border border-dark-border rounded-lg p-2 text-white text-center font-mono"/></div>
@@ -229,12 +227,13 @@ const PartModal = ({ isOpen, onClose, partToEdit, onSave }: any) => {
                         <div><label className="text-xs text-gray-400 block mb-1">Bin</label><input required value={loc.bin} onChange={e=>setLoc({...loc, bin:e.target.value})} className="w-full bg-dark-bg border border-dark-border rounded-lg p-2 text-white text-center font-mono"/></div>
                     </div>
                 </div>
-                <div className="grid grid-cols-2 gap-6">
-                    <div><label className="block text-sm font-medium text-gray-400 mb-1">Quantity</label><input type="number" required value={qty} onChange={e=>setQty(Number(e.target.value))} className="w-full bg-dark-bg border border-dark-border rounded-lg p-3 text-white focus:border-primary-500 outline-none" min="0"/></div>
-                </div>
+                <div><label className="block text-sm font-medium text-gray-400 mb-1">Quantity</label><input type="number" required value={qty} onChange={e=>setQty(Number(e.target.value))} className="w-full bg-dark-bg border border-dark-border rounded-lg p-3 text-white focus:border-primary-500 outline-none" min="0"/></div>
                 <div className="pt-4 flex justify-end gap-3 border-t border-dark-border mt-2">
                     <button type="button" onClick={onClose} className="px-5 py-2.5 rounded-lg text-gray-400 hover:text-white hover:bg-white/5 transition-colors font-medium">Cancel</button>
-                    <button type="submit" className="px-5 py-2.5 bg-primary-600 hover:bg-primary-500 rounded-lg text-white font-bold shadow-lg shadow-primary-900/30 transition-all">Save Changes</button>
+                    <button type="submit" disabled={isSaving} className="px-5 py-2.5 bg-primary-600 hover:bg-primary-500 rounded-lg text-white font-bold shadow-lg shadow-primary-900/30 transition-all flex items-center gap-2">
+                        {isSaving ? <RefreshIcon className="w-5 h-5 animate-spin" /> : null}
+                        {isSaving ? 'Saving...' : 'Save Changes'}
+                    </button>
                 </div>
             </form>
         </Modal>
@@ -242,7 +241,7 @@ const PartModal = ({ isOpen, onClose, partToEdit, onSave }: any) => {
 };
 
 export const SupervisorDashboard: React.FC<Props> = ({ currentUser, onLogout }) => {
-  const { parts, logs, users, settings, addUser, removeUser, getLowStockParts, addPart, editPart, removePart, restockPart, searchParts, exportLogsToExcel, resetAllStock, formatLocation, exportStockToExcel, getConsumptionStats, resetConsumptionStats } = useInventory();
+  const { parts, logs, users, settings, addUser, removeUser, getLowStockParts, addPart, editPart, removePart, restockPart, searchParts, exportLogsToExcel, resetAllStock, formatLocation, exportStockToExcel, getConsumptionStats, resetConsumptionStats, refreshData } = useInventory();
   const { setLogo, clearLogo, CompanyLogo } = useBranding();
   
   const [activeTab, setActiveTab] = useState('dashboard');
@@ -321,11 +320,20 @@ export const SupervisorDashboard: React.FC<Props> = ({ currentUser, onLogout }) 
       e.preventDefault();
       if (!newMemberName.trim()) return;
       const res = await addUser(newMemberName);
-      if (res.success) { setNewMemberName(''); alert('Team member added!'); }
+      if (res.success) { 
+          setNewMemberName(''); 
+          alert('Team member added!'); 
+          refreshData(); 
+      } else {
+          alert("Error adding user: " + res.message);
+      }
   };
 
   const handleRemoveUser = async (id: string, name: string) => {
-      if (confirm(`Remove ${name}?`)) await removeUser(id);
+      if (confirm(`Remove ${name}?`)) {
+          const res = await removeUser(id);
+          if (res.success) refreshData();
+      }
   };
   
   const handleClearConsumption = async () => {
@@ -352,14 +360,26 @@ export const SupervisorDashboard: React.FC<Props> = ({ currentUser, onLogout }) 
   };
 
   const handleLock = () => setIsLocked(true);
-  const handleUnlock = (password: string) => { if (password) setIsLocked(false); };
+  const handleUnlock = (password: string) => { if (password === '1234') setIsLocked(false); else alert("Incorrect Password"); };
 
   const handleSavePart = async (fd: FormData) => {
       const res = partToEdit ? await editPart(partToEdit.id, fd) : await addPart(fd);
-      if (res.success) { setIsPartModalOpen(false); setPartToEdit(null); alert(res.message); }
+      if (res.success) { 
+          setIsPartModalOpen(false); 
+          setPartToEdit(null); 
+          alert(res.message); 
+          refreshData();
+      } else {
+          alert("Error: " + res.message);
+      }
   };
 
-  const handleRemovePart = async (partId: string) => { if(window.confirm(`Delete part ${partId}?`)) await removePart(partId); };
+  const handleRemovePart = async (partId: string) => { 
+      if(window.confirm(`Delete part ${partId}?`)) {
+          const res = await removePart(partId);
+          if (res.success) refreshData();
+      }
+  };
 
   const handleSendEmailAlert = async () => {
       const res = await StorageService.triggerLowStockAlert(lowStock);
@@ -386,9 +406,9 @@ export const SupervisorDashboard: React.FC<Props> = ({ currentUser, onLogout }) 
                   </div>
                   <h2 className="text-2xl font-bold text-white mb-2">Session Locked</h2>
                   <p className="text-gray-400 mb-6">Enter admin password to resume.</p>
-                  <form onSubmit={e => { e.preventDefault(); handleUnlock('123'); }}>
-                      <input type="password" placeholder="Password" className="w-full bg-dark-bg border border-dark-border rounded-lg p-3 text-white mb-4 focus:ring-2 focus:ring-primary-600 outline-none" autoFocus />
-                      <button type="button" onClick={() => handleUnlock('123')} className="w-full bg-primary-600 hover:bg-primary-500 text-white font-bold py-3 rounded-lg transition-colors">Unlock</button>
+                  <form onSubmit={e => { e.preventDefault(); handleUnlock((e.target as any).password.value); }}>
+                      <input name="password" type="password" placeholder="Password" className="w-full bg-dark-bg border border-dark-border rounded-lg p-3 text-white mb-4 focus:ring-2 focus:ring-primary-600 outline-none" autoFocus />
+                      <button type="submit" className="w-full bg-primary-600 hover:bg-primary-500 text-white font-bold py-3 rounded-lg transition-colors">Unlock</button>
                   </form>
               </div>
           </div>
@@ -398,24 +418,24 @@ export const SupervisorDashboard: React.FC<Props> = ({ currentUser, onLogout }) 
   const renderDashboard = () => (
       <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-              <div className="bg-dark-surface/50 backdrop-blur-md p-6 rounded-2xl border border-dark-border shadow-lg hover:border-primary-500/30 transition-colors group">
+              <div className="bg-dark-surface/50 backdrop-blur-md p-6 rounded-2xl border border-dark-border shadow-lg group">
                   <div className="flex justify-between items-start">
                     <div className="text-gray-400 text-xs font-bold uppercase tracking-wider">Total SKU Count</div>
-                    <div className="bg-primary-500/10 p-2 rounded-lg group-hover:bg-primary-500/20 transition-colors"><DocumentTextIcon className="w-5 h-5 text-primary-400"/></div>
+                    <div className="bg-primary-500/10 p-2 rounded-lg"><DocumentTextIcon className="w-5 h-5 text-primary-400"/></div>
                   </div>
                   <div className="text-4xl font-bold text-white mt-4">{parts.length}</div>
               </div>
-              <div className="bg-dark-surface/50 backdrop-blur-md p-6 rounded-2xl border border-dark-border shadow-lg hover:border-blue-500/30 transition-colors group">
+              <div className="bg-dark-surface/50 backdrop-blur-md p-6 rounded-2xl border border-dark-border shadow-lg group">
                   <div className="flex justify-between items-start">
                     <div className="text-gray-400 text-xs font-bold uppercase tracking-wider">Total Stock Level</div>
-                    <div className="bg-blue-500/10 p-2 rounded-lg group-hover:bg-blue-500/20 transition-colors"><ChartBarIcon className="w-5 h-5 text-blue-400"/></div>
+                    <div className="bg-blue-500/10 p-2 rounded-lg"><ChartBarIcon className="w-5 h-5 text-blue-400"/></div>
                   </div>
-                  <div className="text-4xl font-bold text-white mt-4">{parts.reduce((a,b) => a + b.quantity, 0)}</div>
+                  <div className="text-4xl font-bold text-white mt-4">{parts.reduce((a,b) => a + (b.quantity || 0), 0)}</div>
               </div>
-              <div className="bg-dark-surface/50 backdrop-blur-md p-6 rounded-2xl border border-red-900/30 shadow-lg hover:border-red-500/30 transition-colors relative overflow-hidden group">
+              <div className="bg-dark-surface/50 backdrop-blur-md p-6 rounded-2xl border border-red-900/30 shadow-lg group">
                   <div className="flex justify-between items-start relative z-10">
                     <div className="text-red-300/80 text-xs font-bold uppercase tracking-wider">Low Stock Alerts</div>
-                    <div className="bg-red-500/10 p-2 rounded-lg group-hover:bg-red-500/20 transition-colors"><ExclamationTriangleIcon className="w-5 h-5 text-red-400"/></div>
+                    <div className="bg-red-500/10 p-2 rounded-lg"><ExclamationTriangleIcon className="w-5 h-5 text-red-400"/></div>
                   </div>
                   <div className="text-4xl font-bold text-white mt-4 relative z-10">{lowStock.length}</div>
                   {lowStock.length > 0 && <button type="button" onClick={handleSendEmailAlert} className="z-20 text-xs bg-red-500 hover:bg-red-400 text-white px-2 py-1 rounded mt-2">Notify Team</button>}
@@ -437,7 +457,7 @@ export const SupervisorDashboard: React.FC<Props> = ({ currentUser, onLogout }) 
                    <h3 className="text-lg font-bold text-white mb-6">Recent Activity</h3>
                    <div className="space-y-2">
                        {logs.slice(0, 5).map(l => (
-                           <div key={l.id} className="flex items-center justify-between text-sm p-3 hover:bg-white/5 rounded-lg transition-colors group">
+                           <div key={l.id} className="flex items-center justify-between text-sm p-3 hover:bg-white/5 rounded-lg group">
                                <div className="flex items-center gap-3">
                                    <div className="w-8 h-8 rounded-full bg-gray-700 flex items-center justify-center text-xs font-bold text-gray-400">{l.operatorId.substring(0,2).toUpperCase()}</div>
                                    <div><div className="text-white font-medium">{l.partName || 'Unknown Item'}</div><div className="text-gray-500 text-xs">{new Date(l.timestamp).toLocaleString()}</div></div>
@@ -480,7 +500,9 @@ export const SupervisorDashboard: React.FC<Props> = ({ currentUser, onLogout }) 
                               <tr key={part.id} className="hover:bg-white/5 transition-colors group">
                                   <td className="p-4">
                                       <div className="flex items-center gap-4">
-                                          <div className="w-12 h-12 rounded-lg bg-gray-800 border border-gray-700 flex items-center justify-center shrink-0 overflow-hidden relative"><img src={part.image || "https://picsum.photos/50"} alt="" className="max-w-full max-h-full object-contain hover:scale-110 transition-transform duration-300"/></div>
+                                          <div className="w-12 h-12 rounded-lg bg-gray-800 border border-gray-700 flex items-center justify-center shrink-0 overflow-hidden relative">
+                                            <img src={part.image || "https://picsum.photos/50"} alt="" className="max-w-full max-h-full object-contain hover:scale-110 transition-transform duration-300"/>
+                                          </div>
                                           <div><div className="font-bold text-white text-base">{part.name}</div><div className="font-mono text-primary-400 text-xs bg-primary-900/20 px-2 py-0.5 rounded inline-block mt-1">{part.id}</div></div>
                                       </div>
                                   </td>
@@ -508,11 +530,11 @@ export const SupervisorDashboard: React.FC<Props> = ({ currentUser, onLogout }) 
   );
 
   return (
-    <div className="min-h-screen flex bg-gradient-to-br from-gray-900 via-gray-900 to-[#0c1220] text-gray-100 font-sans selection:bg-primary-500/30">
+    <div className="min-h-screen flex bg-gradient-to-br from-gray-900 via-gray-900 to-[#0c1220] text-gray-100 font-sans">
         <aside className="w-72 bg-dark-surface/80 backdrop-blur-xl border-r border-dark-border flex flex-col fixed h-full z-20 shadow-2xl">
             <div className="p-8 border-b border-dark-border/50">
                 <CompanyLogo className="h-8 mb-3 opacity-90"/>
-                <div className="flex items-center gap-2"><div className="w-2 h-2 rounded-full bg-green-500 shadow-[0_0_8px_rgba(34,197,94,0.6)]"></div><span className="text-xs text-gray-400 font-mono tracking-widest uppercase">System Online</span></div>
+                <div className="flex items-center gap-2"><div className="w-2 h-2 rounded-full bg-green-500"></div><span className="text-xs text-gray-400 font-mono tracking-widest uppercase">System Online</span></div>
             </div>
             <nav className="flex-1 p-4 space-y-2 mt-2">
                 {[
@@ -533,7 +555,7 @@ export const SupervisorDashboard: React.FC<Props> = ({ currentUser, onLogout }) 
             </nav>
             <div className="p-4 border-t border-dark-border/50 bg-black/20">
                 <div className="flex items-center gap-3 mb-4 px-2">
-                    <div className="w-10 h-10 rounded-full bg-gray-800 flex items-center justify-center"><span className="font-bold text-xs">{currentUser.name.substring(0,2).toUpperCase()}</span></div>
+                    <div className="w-10 h-10 rounded-full bg-gray-800 flex items-center justify-center font-bold text-xs">{currentUser.name.substring(0,2).toUpperCase()}</div>
                     <div><div className="text-sm font-bold text-white">{currentUser.name}</div><div className="text-xs text-gray-400">Admin Access</div></div>
                 </div>
                 <div className="grid grid-cols-2 gap-2">
@@ -544,7 +566,7 @@ export const SupervisorDashboard: React.FC<Props> = ({ currentUser, onLogout }) 
         </aside>
 
         <main className="flex-1 ml-72 p-8 lg:p-12 overflow-y-auto">
-            <header className="mb-10 animate-in fade-in slide-in-from-top-4 duration-700">
+            <header className="mb-10">
                 <h1 className="text-4xl font-bold text-white capitalize tracking-tight">{activeTab === 'stock' ? 'Inventory Control' : activeTab.replace('-', ' ')}</h1>
                 <p className="text-gray-400 mt-2">Molex Inventory Management System v2.5</p>
             </header>
@@ -635,14 +657,6 @@ export const SupervisorDashboard: React.FC<Props> = ({ currentUser, onLogout }) 
                                 <div><label className="block text-sm font-medium text-gray-400 mb-2">API Key</label><input type="password" value={cloudConfig.key} onChange={(e) => setCloudConfig({...cloudConfig, key: e.target.value})} className="w-full bg-dark-bg border border-dark-border rounded-lg p-3 text-white outline-none"/></div>
                             </div>
                             <div className="flex items-center justify-between"><label className="flex items-center gap-2"><input type="checkbox" checked={cloudConfig.enabled} onChange={(e) => setCloudConfig({...cloudConfig, enabled: e.target.checked})} className="w-5 h-5 rounded"/><span className="text-white text-sm">Enable Cloud Sync</span></label><button onClick={handleSaveCloudConfig} className="bg-green-600 hover:bg-green-500 text-white px-6 py-2 rounded-xl text-sm font-bold shadow-lg">Save & Sync</button></div>
-                        </div>
-                        <div className="bg-dark-surface/50 p-8 rounded-2xl border border-dark-border shadow-xl">
-                            <h3 className="text-xl font-bold mb-6 flex items-center gap-3"><PaperAirplaneIcon className="w-6 h-6 text-blue-400"/> Notifications</h3>
-                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 max-w-2xl">
-                                <div><label className="block text-sm font-medium text-gray-400 mb-2">Bot Token</label><input type="text" value={telegramToken} onChange={(e) => setTelegramToken(e.target.value)} className="w-full bg-dark-bg border border-dark-border rounded-lg p-3 text-white outline-none"/></div>
-                                <div><label className="block text-sm font-medium text-gray-400 mb-2">Chat ID</label><div className="flex gap-2"><input type="text" value={telegramChatId} onChange={(e) => setTelegramChatId(e.target.value)} className="w-full bg-dark-bg border border-dark-border rounded-lg p-3 text-white outline-none"/><button onClick={handleAutoDetectTelegram} className="bg-blue-600 hover:bg-blue-500 text-white px-4 rounded-lg text-xs font-bold">{isAutoDetecting ? '...' : 'Auto'}</button></div></div>
-                            </div>
-                            <div className="flex justify-end pt-4"><button onClick={handleSaveNotifications} className="bg-primary-600 hover:bg-primary-500 text-white px-8 py-3 rounded-xl text-sm font-bold">Save Settings</button></div>
                         </div>
                     </div>
                 )}

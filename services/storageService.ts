@@ -3,7 +3,7 @@ import { INITIAL_PARTS_SEED } from '../constants';
 import { createClient, SupabaseClient } from '@supabase/supabase-js';
 
 // --- CLOUD CONFIGURATION ---
-// Access Vite environment variables via import.meta.env
+// Safely access Vite environment variables
 const API_URL = (import.meta as any).env?.VITE_API_URL || '/api';
 const API_KEY = (import.meta as any).env?.VITE_APP_API_KEY || 'MOLEX_SECURE_ACCESS_2025';
 
@@ -31,8 +31,9 @@ const secureFetch = async (url: string, options: RequestInit = {}) => {
         ...options.headers,
     };
     
-    // Construct full URL if needed (handles absolute vs relative)
-    const fullUrl = url.startsWith('http') ? url : `${API_URL}${url.replace('/api', '')}`;
+    // Ensure URL starts with /api if it's a relative path
+    const targetPath = url.startsWith('/') ? url : `/${url}`;
+    const fullUrl = url.startsWith('http') ? url : `${API_URL}${targetPath.replace('/api', '')}`;
     
     return fetch(fullUrl, { ...options, headers });
 };

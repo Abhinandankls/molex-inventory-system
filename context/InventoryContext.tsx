@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, createContext, useContext, useCallback } from 'react';
 import { Part, LogEntry, ApiResponse, User, SystemSettings } from '../types';
 import { StorageService } from '../services/storageService';
@@ -54,8 +53,7 @@ export const InventoryProvider: React.FC<{ children: React.ReactNode }> = ({ chi
           StorageService.getUsers(),
           StorageService.getSettings()
       ]);
-      const validParts = (p || []).filter(item => item && item.id);
-      setParts(validParts);
+      setParts((p || []).filter(item => item && item.id));
       setLogs(l || []);
       setUsers(u || []);
       setSettings(s);
@@ -74,14 +72,11 @@ export const InventoryProvider: React.FC<{ children: React.ReactNode }> = ({ chi
     let subscription: any = null;
 
     if (sb) {
-        console.log("Subscribing to Realtime changes...");
         const channel = sb.channel('custom-all-channel')
         .on(
             'postgres_changes',
             { event: '*', schema: 'public', table: 'parts' },
-            (payload) => {
-                refreshData();
-            }
+            () => { refreshData(); }
         )
         .subscribe();
         subscription = channel;
@@ -91,12 +86,6 @@ export const InventoryProvider: React.FC<{ children: React.ReactNode }> = ({ chi
         if (subscription && sb) sb.removeChannel(subscription);
     };
   }, [refreshData]);
-
-  const takePart = async (partId: string, operatorId: string) => {
-    const res = await StorageService.takePart(partId, operatorId);
-    if (res.success) await refreshData();
-    return res;
-  };
 
   const parseFormData = async (formData: FormData): Promise<Partial<Part>> => {
     const part: any = {};
@@ -129,6 +118,12 @@ export const InventoryProvider: React.FC<{ children: React.ReactNode }> = ({ chi
     return part;
   };
 
+  const takePart = async (partId: string, operatorId: string) => {
+    const res = await StorageService.takePart(partId, operatorId);
+    if (res.success) await refreshData();
+    return res;
+  };
+
   const addPart = async (formData: FormData) => {
     try {
         const partData = await parseFormData(formData);
@@ -139,7 +134,7 @@ export const InventoryProvider: React.FC<{ children: React.ReactNode }> = ({ chi
             id: partData.id,
             name: partData.name || 'Unnamed Part',
             quantity: partData.quantity || 0,
-            location: partData.location,
+            location: partData.location as any,
             image: partData.image
         };
         const res = await StorageService.addPart(newPart);
@@ -151,10 +146,14 @@ export const InventoryProvider: React.FC<{ children: React.ReactNode }> = ({ chi
   };
 
   const editPart = async (partId: string, formData: FormData) => {
-    const partData = await parseFormData(formData);
-    const res = await StorageService.updatePart(partId, partData);
-    if (res.success) await refreshData();
-    return res;
+    try {
+        const partData = await parseFormData(formData);
+        const res = await StorageService.updatePart(partId, partData);
+        if (res.success) await refreshData();
+        return res;
+    } catch (e: any) {
+        return { success: false, message: e.message || 'Failed to update part' };
+    }
   };
 
   const removePart = async (partId: string) => {
@@ -188,7 +187,6 @@ export const InventoryProvider: React.FC<{ children: React.ReactNode }> = ({ chi
       return res;
   };
 
-  // --- ANALYTICS LOGIC ---
   const resetConsumptionStats = async () => {
       const newSettings = { ...settings, statsStartDate: new Date().toISOString() };
       await StorageService.saveSettings(newSettings);
@@ -196,34 +194,25 @@ export const InventoryProvider: React.FC<{ children: React.ReactNode }> = ({ chi
   };
 
   const getConsumptionStats = (): ConsumptionStat[] => {
-      // 1. Filter logs based on Start Date
       const startDate = settings.statsStartDate ? new Date(settings.statsStartDate) : new Date(0);
-      
-      const relevantLogs = logs.filter(l => 
-          l.action === 'TAKE' && 
-          new Date(l.timestamp) > startDate
-      );
-
-      // 2. Group by Operator
+      const relevantLogs = logs.filter(l => l.action === 'TAKE' && new Date(l.timestamp) > startDate);
       const statsMap: Record<string, { total: number, days: Record<string, number> }> = {};
 
       relevantLogs.forEach(log => {
           const op = log.operatorId;
           const date = new Date(log.timestamp).toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
-          const qty = Math.abs(log.quantityChange); // quantityChange is negative for TAKE
+          const qty = Math.abs(log.quantityChange);
 
           if (!statsMap[op]) statsMap[op] = { total: 0, days: {} };
-          
           statsMap[op].total += qty;
           statsMap[op].days[date] = (statsMap[op].days[date] || 0) + qty;
       });
 
-      // 3. Convert to Array
       return Object.entries(statsMap).map(([operatorId, data]) => ({
           operatorId,
           totalTaken: data.total,
           dailyData: Object.entries(data.days).map(([date, count]) => ({ date, count }))
-      })).sort((a,b) => b.totalTaken - a.totalTaken); // Highest consumer first
+      })).sort((a,b) => b.totalTaken - a.totalTaken);
   };
 
   const formatLocation = useCallback((location: Part['location'] | undefined) => {
